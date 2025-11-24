@@ -1,125 +1,57 @@
+import sys
 import asyncio
-import json
-from typing import Any, Dict
-from mcp.server.fastmcp import FastMCP
-from playwright.async_api import async_playwright
 
-# Import our helper logic (we will keep Scribe as a helper class)
-from src.scribe import Scribe
+# 1. Print immediately to prove Python started
+print("DEBUG: Python script has started!", file=sys.stderr)
 
-# Initialize the MCP Server
-mcp = FastMCP("Softlight Data Collector")
-
-# Global state for the server
-class ServerState:
-    playwright = None
-    browser = None
-    page = None
-    scribe = None
-
-state = ServerState()
-
-@mcp.resource("accessibility_tree://current")
-async def get_accessibility_tree() -> str:
-    """Returns the simplified accessibility tree of the current page."""
-    if not state.page:
-        return "Browser not started."
+try:
+    from mcp.server.fastmcp import FastMCP
+    print("DEBUG: Imported FastMCP successfully", file=sys.stderr)
     
-    snapshot = await state.page.accessibility.snapshot()
-    
-    # Simplified tree parser (same logic as before)
-    def parse(node):
-        interesting = {'button', 'link', 'textbox', 'combobox', 'menuitem'}
-        if node.get('role') in interesting or node.get('name'):
-             return f"[{node.get('role')}]: {node.get('name')} (ID: {node.get('role')}_{node.get('name')})"
-        return None
+    from src.tools import BrowserTool
+    print("DEBUG: Imported BrowserTool successfully", file=sys.stderr)
 
-    # (In production, we'd do full recursive parsing here)
-    return json.dumps(snapshot, indent=2)
+except ImportError as e:
+    print(f"CRITICAL ERROR: Missing library -> {e}", file=sys.stderr)
+    sys.exit(1)
+
+# Initialize the Server
+mcp = FastMCP("Softlight Agent")
+print("DEBUG: FastMCP initialized", file=sys.stderr)
+
+browser_tool = BrowserTool()
 
 @mcp.tool()
-async def open_browser(task_name: str, app_name: str) -> str:
-    """
-    Starts the browser session and initializes the Scribe dataset recorder.
-    """
-    state.playwright = await async_playwright().start()
-    # Use persistent context for login retention
-    state.browser = await state.playwright.chromium.launch_persistent_context(
-        user_data_dir="./browser_data",
-        headless=False, # Headless=False so you can see it working
-        viewport={"width": 1280, "height": 720}
-    )
-    state.page = state.browser.pages[0]
-    
-    # Init Scribe
-    state.scribe = Scribe()
-    state.scribe.start_task(app_name, task_name, [])
-    
-    return "Browser started and Scribe recording initialized."
+async def start_browser() -> str:
+    """Opens the chrome window. Call this first."""
+    print("DEBUG: Tool 'start_browser' called", file=sys.stderr)
+    return await browser_tool.start()
 
 @mcp.tool()
-async def navigate(url: str) -> str:
-    """Navigates to a URL."""
-    if not state.page: return "Error: Browser not open."
-    await state.page.goto(url)
-    return f"Navigated to {url}"
+async def navigate_to(url: str) -> str:
+    """Navigates the browser to a URL."""
+    print(f"DEBUG: Tool 'navigate_to' called with {url}", file=sys.stderr)
+    return await browser_tool.navigate(url)
 
 @mcp.tool()
-async def click_element(selector_role: str, selector_name: str) -> str:
-    """
-    Clicks an element and captures the dataset entry (Screenshot + BBox).
-    """
-    if not state.page: return "Error: Browser not open."
-
-    # 1. Locate
-    # Note: In a real implementation, we would use the unique IDs we generated
-    # For this demo, we use the role/name from the LLM
-    locator = state.page.get_by_role(selector_role, name=selector_name).first
-    
-    if await locator.count() == 0:
-        return "Error: Element not found."
-
-    # 2. Visual Grounding (Get Box)
-    box = await locator.bounding_box()
-    
-    # 3. Capture State (The "Before" Shot)
-    screenshot_path = "temp_screenshot.png"
-    await state.page.screenshot(path=screenshot_path)
-    
-    # 4. Scribe It!
-    acc_tree = await state.page.accessibility.snapshot()
-    state.scribe.capture_step(
-        screenshot_path, 
-        state={"url": state.page.url, "interactive_elements": acc_tree}, 
-        action={"type": "click", "description": f"{selector_role} {selector_name}"}, 
-        target_bbox=box
-    )
-
-    # 5. Act
-    await locator.click()
-    return "Clicked and captured."
+async def get_screen_state() -> str:
+    """Returns the current state of the screen."""
+    state = await browser_tool.get_state()
+    return f"URL: {state['url']}\nElements:\n" + "\n".join(state['elements'])
 
 @mcp.tool()
-async def type_text(selector_role: str, selector_name: str, text: str) -> str:
-    """Types text into a field and captures the state."""
-    if not state.page: return "Error: Browser not open."
-    
-    locator = state.page.get_by_role(selector_role, name=selector_name).first
-    box = await locator.bounding_box()
-    
-    # Scribe
-    await state.page.screenshot(path="temp_screenshot.png")
-    acc_tree = await state.page.accessibility.snapshot()
-    state.scribe.capture_step(
-        "temp_screenshot.png", 
-        {"url": state.page.url, "interactive_elements": acc_tree}, 
-        {"type": "type", "description": f"Typed '{text}' into {selector_name}"}, 
-        box
-    )
+async def perform_action(action: str, target_id: int, text: str = None) -> str:
+    """Interacts with the page."""
+    print(f"DEBUG: Action {action} on {target_id}", file=sys.stderr)
+    return await browser_tool.act(action, target_id, text)
 
-    await locator.fill(text)
-    return "Typed text and captured."
+@mcp.tool()
+async def ask_user_for_help(question: str) -> str:
+    return f"REQUEST_FROM_AGENT: {question}"
 
 if __name__ == "__main__":
-    # This allows you to run `python src/server.py` and connect to it
-    mcp.run()
+    print("DEBUG: Starting Server Run Loop...", file=sys.stderr)
+    try:
+        mcp.run()
+    except Exception as e:
+        print(f"CRITICAL ERROR in mcp.run(): {e}", file=sys.stderr)

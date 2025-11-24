@@ -1,0 +1,16 @@
+{
+  "step_id": 6,
+  "state": {
+    "url": "https://linear.app/login"
+  },
+  "action": {
+    "type": "click",
+    "target": 13
+  },
+  "target_bbox": {
+    "x": 496,
+    "y": 477.5,
+    "width": 288,
+    "height": 48
+  }
+}
