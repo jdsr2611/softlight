@@ -113,6 +113,14 @@ OPENAI_API_KEY=sk-...
 
 ## 💻 Usage
 
+### Quick Start / Testing
+To quickly test the system with interactive demos (Wikipedia, SauceDemo, Linear, or Custom), run the main entry point:
+
+```bash
+uv run main.py
+```
+This will launch a CLI menu where you can select a pre-configured demo task.
+
 ### Mode 1 – Local Multi-Agent (Planner A + Browser B)
 This is the primary demo mode where the local planner directs the browser agent.
 

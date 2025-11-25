@@ -38,7 +38,7 @@ async def run_autonomous_agent(task_prompt: str, task_name: str):
     print(f"📂 Output will be saved to: {tool.scribe.current_task_dir}")
 
     # 3. Initialize the Brain (LLM)
-    llm = ChatOpenAI(model="gpt-5.1", temperature=0)
+    llm = ChatOpenAI(model="gpt-4o", temperature=0)
 
     # 4. Start the Browser
     await tool.start()
