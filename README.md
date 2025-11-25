@@ -1,420 +1,192 @@
-Softlight Browser Agent
+# Softlight Browser Agent
 
-This repo implements Agent B – a browser execution agent – plus two ways to provide Agent A – a planner.
+![Python Version](https://img.shields.io/badge/python-3.12%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-The system takes a high-level question like:
+**Softlight** is a robust browser execution agent system designed to bridge high-level user intent with concrete browser actions. It implements a dual-agent architecture:
+- **Agent A (Planner):** Translates high-level questions into structured browser tasks.
+- **Agent B (Executor):** Executes tasks in a live browser using accessibility-tree-based navigation, capturing a rich dataset of interactions.
 
-“How do I create a new project in Linear and name it Softlight Demo? Capture each important step.”
+The system is designed to generalize across different web applications by relying on the accessibility tree rather than brittle, hard-coded selectors.
 
-and turns it into:
+---
 
-A concrete browser task (Agent A), and
+## 📋 Table of Contents
 
-A sequence of real UI interactions in a live browser, with screenshots and metadata saved as a dataset (Agent B).
+- [Architecture](#-architecture)
+  - [1. Planner Agent (Agent A)](#1-planner-agent-agent-a)
+  - [2. Browser Agent (Agent B)](#2-browser-agent-agent-b--brain)
+  - [3. BrowserTool](#3-browsertool-agent-b--body)
+  - [MCP / Claude Integration](#mcp--claude-integration)
+- [Getting Started](#-getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Configuration](#configuration)
+- [Usage](#-usage)
+  - [Mode 1: Local Multi-Agent](#mode-1--local-multi-agent-planner-a--browser-b)
+  - [Mode 2: Direct Browser Agent](#mode-2--direct-browser-agent-agent-b-only)
+  - [Mode 3: Claude as Agent A (MCP)](#mode-3--claude-as-agent-a-mcp)
+- [Dataset Layout](#-dataset-layout)
+- [Example Tasks](#-example-tasks)
+- [Limitations & Future Work](#-limitations--future-work)
 
-It is designed to generalize across different apps by using the accessibility tree, not hard-coded selectors or URLs.
+---
 
-High-Level Architecture
+## 🏗 Architecture
 
-There are three main pieces:
+The system consists of three main components working in unison.
 
-1. Planner Agent (Agent A)
+### 1. Planner Agent (Agent A)
+**File:** `src/agent_planner.py`
 
-File: src/agent_planner.py
+The Planner serves as the entry point. It accepts a high-level user question and uses **GPT-4o** to decompose it into a concrete browser task.
 
-Accepts a high-level, user-friendly question.
+- **Input:** "How do I create a new project in Linear...?"
+- **Output:** A JSON plan saved in `plans/<slug>.json`.
+- **Action:** Calls Agent B with a specific `task_prompt` and `task_name`.
 
-Uses gpt-4o to rewrite it into a concrete browser task (e.g. “navigate to X, click Y, type Z…”).
+### 2. Browser Agent (Agent B – Brain)
+**File:** `src/agent.py`
 
-Saves this plan as JSON under plans/<slug>.json:
+This component runs the reasoning and orchestration loop (ReAct) over the browser.
 
-{
-  "user_question": "...",
-  "agent_b_task_prompt": "Navigate to linear.app and..."
-}
+- **Initialization:** Loads API keys, creates an LLM client (`ChatOpenAI`), and initializes `BrowserTool`.
+- **ReAct Loop:**
+  1.  **Observe:** Captures the current state (URL, accessibility tree).
+  2.  **Think:** specifices the next action (`navigate`, `click`, `type`, `ask_user`, `done`) based on the task and history.
+  3.  **Act:** Executes the action via `BrowserTool`.
 
+### 3. BrowserTool (Agent B – Body)
+**File:** `src/tools.py`
 
-Calls Agent B with:
+The low-level interface for browser interaction and data capture.
 
-task_prompt (the concrete instruction)
+- **Persistent Profile:** Uses a persistent Chromium context (`playwright_profiles/`) to maintain login sessions (cookies, localStorage).
+- **Accessibility Map:** `get_state()` traverses the accessibility tree to create a numbered list of interactive elements (e.g., `[5] textbox: Project name`).
+- **Visual Grounding:** Every action triggers a screenshot and metadata capture via `Scribe`, saved to `output/<timestamp>_<task_name>/`.
 
-task_name (a slug, used as folder name in output/).
+### MCP / Claude Integration
+**File:** `src/server.py`
 
-This is the “front door” of the local multi-agent system.
+Softlight exposes its `BrowserTool` capabilities via the **Model Context Protocol (MCP)**, allowing external agents like **Claude Desktop** to act as Agent A.
 
-2. Browser Agent (Agent B – Brain)
+**Exposed Tools:**
+- `start_browser`
+- `navigate_to`
+- `get_screen_state`
+- `perform_action`
+- `ask_user_for_help`
 
-File: src/agent.py
-Key function: run_autonomous_agent(task_prompt: str, task_name: str)
+---
 
-This is the reasoning / orchestration loop over the browser.
+## 🚀 Getting Started
 
-Initialize
+### Prerequisites
+- **Python 3.12+**
+- **OpenAI API Key** (for GPT-4o)
 
-Loads OPENAI_API_KEY from .env.
+### Installation
 
-Creates an LLM client:
+You can set up the project using `uv` (recommended) or `pip`.
 
-ChatOpenAI(model="gpt-4o", temperature=0)
-
-
-Creates a BrowserTool instance (see below).
-
-Starts a new Scribe task so all screenshots/metadata go into:
-
-output/<timestamp>_<task_name>/
-
-
-System Prompt & JSON Action Schema
-
-Agent B is constrained to a small set of actions:
-
-{
-  "action": "navigate" | "click" | "type" | "ask_user" | "done",
-  "id": <int>,
-  "url": "<string>",
-  "text": "<string>",
-  "question": "<string>"
-}
-
-
-The prompt also instructs the model to:
-
-Close popups, cookie banners, and other blocking modals.
-
-Use the Visible Elements list (from the accessibility tree).
-
-Fill key form fields (especially “name” / “title”) before pressing create/submit.
-
-ReAct Loop
-
-For up to max_steps:
-
-Observe
-
-state = await tool.get_state()
-# state = { "url": "...", "elements": ["[1] button: …", "[2] textbox: …", ...] }
-
-
-Think
-
-Builds a prompt with:
-
-The normalized task.
-
-Last few actions.
-
-Current URL.
-
-Truncated element list.
-
-Calls gpt-4o and parses the JSON response.
-
-Act
-
-navigate → tool.navigate(url)
-
-click / type → tool.act(action, id, text)
-
-ask_user → pauses in the terminal so you can provide info (email, code, etc.).
-
-done → stop.
-
-Each action triggers a screenshot & metadata capture via BrowserTool.act and Scribe.
-
-3. BrowserTool (Agent B – Body)
-
-File: src/tools.py
-Class: BrowserTool
-
-This is the low-level UI controller and dataset generator.
-
-Persistent Chromium Profile
-context = await self.playwright.chromium.launch_persistent_context(
-    user_data_dir=self.user_data_dir,
-    headless=False,
-    slow_mo=1000,
-    viewport={"width": 1280, "height": 720},
-)
-
-
-Uses a fixed user_data_dir under playwright_profiles/linear_profile/.
-
-Stores cookies and localStorage there so apps like Linear stay logged in across runs after the first login.
-
-First run: you may need to help with magic-link login.
-Later runs: the same profile is reused.
-
-get_state(): Accessibility-Based Element Map
-state = await tool.get_state()
-# -> { "url": ..., "elements": ["[1] button: …", "[2] textbox: …", ...] }
-
-
-Calls page.accessibility.snapshot().
-
-Traverses the tree and keeps elements that:
-
-are interactive (button, link, textbox, combobox, menuitem), or
-
-have an accessible name.
-
-For each such node it:
-
-Assigns an integer ID.
-
-Resolves a Playwright locator with page.get_by_role(...).
-
-Builds a label combining name, value, and description.
-
-The result looks like:
-
-[5] textbox: Project name
-[12] button: Create project
-[20] button: Accept all cookies
-
-
-This list is what the LLM uses to act on non-URL states like modals and forms.
-
-act(): Click / Type + Scribe Capture
-async def act(self, action_type: str, target_id: int, text: str = None):
-    # 1. Lookup locator by ID
-    # 2. Take screenshot + bounding box
-    # 3. Perform click or type
-
-
-Visual grounding & capture
-
-Check locator.is_visible() and locator.bounding_box().
-
-Save a screenshot to:
-
-<current_task_dir>/step_XXX.png
-
-
-Call:
-
-self.scribe.capture_step(
-    screenshot_path,
-    {"url": self.page.url},
-    {"type": action_type, "target": target_id, "text": text},
-    box,
-)
-
-
-Physical action
-
-click → locator.click()
-
-type → robust typing:
-
-Try locator.fill(text).
-
-If that fails (e.g. container div), fall back to:
-
-await locator.click()
-await self.page.keyboard.type(text)
-
-
-Attempt keyboard.press("Enter") to submit the form where appropriate.
-
-So every JSON decision from the LLM becomes a real browser action and a labeled screenshot.
-
-MCP / Claude Integration (External Agent A)
-
-File: src/server.py
-
-For a full multi-agent setup, the same BrowserTool is exposed over MCP so Claude Desktop can act as Agent A.
-
-Exposed tools:
-
-start_browser(task_name: str | None)
-
-navigate_to(url: str)
-
-get_screen_state()
-
-perform_action(action: str, target_id: int, text: str | None)
-
-ask_user_for_help(question: str)
-
-start_browser also initializes a Scribe task:
-
-browser_tool.scribe.start_task("claude_agent", task_name, [])
-# browser_tool.scribe.current_task_dir is used for screenshots
-
-
-Example Claude Desktop config (claude_desktop_config.json):
-
-{
-  "mcpServers": {
-    "softlight-agent": {
-      "command": "E:\\Interview assignments\\softlight\\.venv\\Scripts\\python.exe",
-      "args": ["-m", "src.server"],
-      "cwd": "E:\\Interview assignments\\softlight",
-      "env": {
-        "PYTHONIOENCODING": "utf-8",
-        "PYTHONPATH": "E:\\Interview assignments\\softlight"
-      }
-    }
-  }
-}
-
-
-Then in Claude you can ask:
-
-“Use the softlight-agent tools to open linear.app, create a new project named ‘Softlight Demo’, and capture each step.”
-
-Claude (Agent A) calls the tools; BrowserTool + Scribe do the real UI work and dataset capture.
-
-Repo Structure
-softlight/
-  pyproject.toml
-  requirements.txt
-  .env                     # OPENAI_API_KEY
-  plans/                   # Agent A plans (JSON)
-    create_a_new_project_in_linear_and_name.json
-    ...
-  output/                  # Scribe output (Agent B)
-    20251124-..._create_a_new_project_in_linear_and_name/
-      step_001.png
-      step_002.png
-      ...
-      (metadata from Scribe)
-  playwright_profiles/
-    linear_profile/        # Persistent Chromium profile for Linear
-  src/
-    agent.py               # Browser Agent (Agent B brain / ReAct loop)
-    agent_planner.py       # Local Planner (Agent A)
-    tools.py               # BrowserTool (Agent B body, Playwright+Scribe)
-    scribe.py              # Logging / dataset writer
-    server.py              # MCP server (Claude integration)
-
-Setup
-1. Install Dependencies
-
-Using uv:
-
+#### Using uv
+```bash
 uv sync
 python -m playwright install chromium
+```
 
-
-Or using pip:
-
+#### Using pip
+```bash
 pip install -r requirements.txt
 python -m playwright install chromium
+```
 
-2. Environment Variables
+### Configuration
 
-Create .env in the project root:
+Create a `.env` file in the project root and add your OpenAI API key:
 
+```env
 OPENAI_API_KEY=sk-...
+```
 
-Usage
-Mode 1 – Local Multi-Agent (Planner A + Browser B)
+---
 
-This is the main demo mode.
+## 💻 Usage
 
+### Mode 1 – Local Multi-Agent (Planner A + Browser B)
+This is the primary demo mode where the local planner directs the browser agent.
+
+```bash
 uv run python -m src.agent_planner "How do I create a new project in Linear and name it Softlight Demo? Capture each important step for me."
+```
 
+**Flow:**
+1.  **Agent A** generates a plan (`plans/create_a_new_project...json`).
+2.  **Agent B** executes the plan, recording screenshots to `output/`.
 
-Flow:
+### Mode 2 – Direct Browser Agent (Agent B Only)
+Bypass the planner to run a specific task directly.
 
-agent_planner.py (Agent A) rewrites the question into a concrete browser task and saves:
-
-plans/create_a_new_project_in_linear_and_name.json
-
-
-It calls:
-
-run_autonomous_agent(task_prompt, "create_a_new_project_in_linear_and_name")
-
-
-agent.py (Agent B) launches Chromium, runs the ReAct loop, and Scribe records screenshots into:
-
-output/<timestamp>_create_a_new_project_in_linear_and_name/step_XXX.png
-
-
-On the first Linear run, you may need to help with login when the agent uses ask_user. Thanks to the persistent profile, later runs should reuse the session.
-
-Mode 2 – Direct Browser Agent (Agent B Only)
-
-If you want to bypass the planner and give a concrete task manually (depending on how you wire __main__ in agent.py):
-
+```bash
 uv run python -m src.agent
+```
+*Note: You may need to modify `__main__` in `src/agent.py` to specify your desired task.*
 
+### Mode 3 – Claude as Agent A (MCP)
+Integrate with Claude Desktop to use Claude as the high-level planner.
 
-(or call run_autonomous_agent from a small script) and change the hard-coded test task.
+1.  **Configure Claude Desktop:** Add the following to your `claude_desktop_config.json`:
 
-Mode 3 – Claude as Agent A (MCP)
+    ```json
+    {
+      "mcpServers": {
+        "softlight-agent": {
+          "command": "E:\\Interview assignments\\softlight\\.venv\\Scripts\\python.exe",
+          "args": ["-m", "src.server"],
+          "cwd": "E:\\Interview assignments\\softlight",
+          "env": {
+            "PYTHONIOENCODING": "utf-8",
+            "PYTHONPATH": "E:\\Interview assignments\\softlight"
+          }
+        }
+      }
+    }
+    ```
 
-Configure Claude Desktop with the MCP server (see snippet above).
+2.  **Run in Claude:**
+    > "Use the softlight-agent tools to open linear.app, create a new project named ‘Softlight Demo’, and capture each step."
 
-Restart Claude Desktop.
+---
 
-In a new chat:
+## 📂 Dataset Layout
 
-“Use the softlight-agent tools to open https://www.wikipedia.org
-, search for ‘Robotics’, and capture each important UI state.”
+Every run generates a structured dataset containing plans and execution traces.
 
-Claude will:
+**Plan (Agent A):**
+- `plans/<slug>.json`: Contains the original question and the concrete task prompt.
 
-Start src.server.
+**Execution Trace (Agent B):**
+- `output/<timestamp>_<task_name>/`:
+  - `step_001.png`, `step_002.png`, ... (Screenshots of each state)
+  - Metadata logs (captured by `Scribe`)
 
-Call start_browser, navigate_to, get_screen_state, and perform_action.
+---
 
-Generate a dataset in output/claude_agent_<session>/step_XXX.png.
+## 💡 Example Tasks
 
-Dataset Layout
+**Linear:**
+> "How do I create a new project in Linear and name it ‘Softlight Demo’? Capture each important step for me."
 
-For each task/workflow you run, you get:
+**Wikipedia:**
+> "How do I search for ‘Robotics’ on Wikipedia and open the main article? Capture each main screen."
 
-Plan (Agent A): plans/<slug>.json
-Contains:
+**TodoMVC:**
+> "How do I add a todo called ‘Softlight Demo’ in the React TodoMVC example and then mark it complete? Capture each UI state."
 
-Original user question
+---
 
-Concrete task passed to Agent B.
+## ⚠️ Limitations & Future Work
 
-UI state sequence (Agent B + Scribe):
-
-output/20251124-002403_create_a_new_project_in_linear_and_name/
-  step_001.png
-  step_002.png
-  step_003.png
-  ...
-  (metadata from Scribe per step)
-
-
-Each step_XXX.png corresponds to one LLM decision (click or type) with URL, action type, target ID and bounding box logged.
-
-Example Tasks
-
-Some example prompts for agent_planner.py:
-
-Linear
-
-“How do I create a new project in Linear and name it ‘Softlight Demo’? Capture each important step for me.”
-
-“How do I filter issues in Linear so that only my open issues are shown? Capture the full workflow.”
-
-Wikipedia
-
-“How do I search for ‘Robotics’ on Wikipedia and open the main article? Capture each main screen.”
-
-TodoMVC
-
-“How do I add a todo called ‘Softlight Demo’ in the React TodoMVC example and then mark it complete? Capture each UI state.”
-
-Limitations / Future Work
-
-Complex modals
-
-On complex UIs (e.g. Linear’s “New project” modal), accessibility labels can be weak, so the model may repeatedly click the submit button instead of filling all fields. The system still captures all intermediate states; a human can complete the last step if needed.
-
-Token / rate limits
-
-The agent truncates the element list per step to avoid hitting gpt-4o tokens-per-minute limits. Further compression or smarter filtering of elements could make this even more robust.
-
-Loop detection
-
-A natural improvement is to detect repeated actions on the same element with no change in UI and automatically switch strategy (e.g., try a type action, or escalate with a more detailed ask_user).
+- **Complex Modals:** Accessibility labels on complex modals (like Linear's "New project") can sometimes be ambiguous, leading to potential retry loops.
+- **Token Limits:** The accessibility tree is truncated to fit within GPT-4o's context window. Smarter filtering could improve robustness.
+- **Loop Detection:** Future improvements will include detecting repetitive actions to automatically switch strategies (e.g., fallback to keyboard typing).
