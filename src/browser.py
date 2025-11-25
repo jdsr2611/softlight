@@ -1,22 +1,46 @@
 import asyncio
 from playwright.async_api import async_playwright
 
-class BrowserManager:
-    def __init__(self, headless=False):
-        self.headless = headless
+import os
+from playwright.async_api import async_playwright
+from src.scribe import Scribe
+
+class BrowserTool:
+    def __init__(self):
         self.playwright = None
-        self.browser = None
-        self.context = None
         self.page = None
-        self.element_map = {}  # Map ID to handle
+        self.scribe = Scribe()
+        self.element_map = {}
+        self.step_index = 0
+
+        # Folder where Chromium will store cookies, localStorage, etc.
+        self.user_data_dir = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "..",
+            "playwright_profiles",
+            "linear_profile",
+        )
+
+        self.scribe.start_task("browser_tool", "startup_session", [])
+        print(f"DEBUG: Scribe initialized at {self.scribe.current_task_dir}")
 
     async def start(self):
+        if self.playwright:
+            return "Browser already running"
+
         self.playwright = await async_playwright().start()
-        self.browser = await self.playwright.chromium.launch(headless=self.headless)
-        self.context = await self.browser.new_context(
-            viewport={"width": 1280, "height": 720}
+
+        # 🔑 Persistent context: reuses the same profile folder every run
+        context = await self.playwright.chromium.launch_persistent_context(
+            user_data_dir=self.user_data_dir,
+            headless=False,
+            slow_mo=1000,
+            viewport={"width": 1280, "height": 720},
         )
-        self.page = await self.context.new_page()
+
+        self.page = await context.new_page()
+        return "Browser Started and Recording Initialized"
+
 
     async def get_current_state(self):
         if not self.page:

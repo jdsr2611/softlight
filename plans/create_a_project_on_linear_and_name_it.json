@@ -1,0 +1,4 @@
+{
+  "user_question": "Create a project on linear and name it as demo-3",
+  "agent_b_task_prompt": "Navigate to the Linear website at linear.app, log in to your account, click on the \"New Project\" button, and enter \"demo-3\" as the project name before saving it."
+}

@@ -1,0 +1,4 @@
+{
+  "user_question": "Go to linear.app and log in with jdhana2001@gmail.com and create a new project and name it as demo 6 and add a small description",
+  "agent_b_task_prompt": "Navigate to linear.app, click on the \"Log In\" button, enter the email \"jdhana2001@gmail.com\" in the email field, and press Enter. Once logged in, locate and click on the option to create a new project, name the project \"demo 6,\" and add a brief description in the description field before saving the project."
+}

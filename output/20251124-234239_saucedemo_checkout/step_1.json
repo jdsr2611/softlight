@@ -1,0 +1,17 @@
+{
+  "step_id": 1,
+  "state": {
+    "url": "https://www.saucedemo.com/"
+  },
+  "action": {
+    "type": "type",
+    "target": 3,
+    "text": "standard_user"
+  },
+  "target_bbox": {
+    "x": 494,
+    "y": 153.8000030517578,
+    "width": 292,
+    "height": 38.399993896484375
+  }
+}

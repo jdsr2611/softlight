@@ -1,0 +1,17 @@
+{
+  "step_id": 4,
+  "state": {
+    "url": "https://en.wikipedia.org/wiki/SpaceX#History"
+  },
+  "action": {
+    "type": "click",
+    "target": 15,
+    "text": null
+  },
+  "target_bbox": {
+    "x": 60,
+    "y": 89.17500305175781,
+    "width": 148.8000030517578,
+    "height": 28.79999542236328
+  }
+}

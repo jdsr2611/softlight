@@ -1,0 +1,4 @@
+{
+  "user_question": "import os",
+  "agent_b_task_prompt": "This is not a task for a browser agent. Please provide a question or request related to web browsing or online tasks."
+}

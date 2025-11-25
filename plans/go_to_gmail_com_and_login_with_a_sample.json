@@ -1,0 +1,4 @@
+{
+  "user_question": "Go to gmail.com and login with a sample email",
+  "agent_b_task_prompt": "Open the URL \"https://www.gmail.com\", type \"sampleemail@gmail.com\" into the email field, press Enter, type \"samplepassword\" into the password field, and press Enter to attempt to log in."
+}

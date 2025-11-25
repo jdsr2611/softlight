@@ -1,0 +1,4 @@
+{
+  "user_question": "Go to gmail and create an account with random details",
+  "agent_b_task_prompt": "Navigate to the Gmail sign-up page by going to \"https://accounts.google.com/signup\", fill in the required fields with random details for first name, last name, username, and password, and then submit the form to create a new account."
+}

@@ -1,0 +1,4 @@
+{
+  "user_question": "How do I create a project in Linear and name it Softlight Demo?’.",
+  "agent_b_task_prompt": "Navigate to the Linear website at linear.app, log in to your account if necessary, locate and click on the \"New Project\" button or link, and then type \"Softlight Demo\" into the project name field before saving or creating the project."
+}

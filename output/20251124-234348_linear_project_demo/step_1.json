@@ -1,0 +1,17 @@
+{
+  "step_id": 1,
+  "state": {
+    "url": "https://linear.app/santhosh2611/team/SAN/active"
+  },
+  "action": {
+    "type": "click",
+    "target": 18,
+    "text": null
+  },
+  "target_bbox": {
+    "x": 14,
+    "y": 153.0500030517578,
+    "width": 215.60000610351562,
+    "height": 28
+  }
+}

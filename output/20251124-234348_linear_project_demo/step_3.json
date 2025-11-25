@@ -1,0 +1,17 @@
+{
+  "step_id": 3,
+  "state": {
+    "url": "https://linear.app/santhosh2611/projects/all"
+  },
+  "action": {
+    "type": "type",
+    "target": 79,
+    "text": "New Project from Agent"
+  },
+  "target_bbox": {
+    "x": 208.8000030517578,
+    "y": 151.8000030517578,
+    "width": 852.0000457763672,
+    "height": 31.987503051757812
+  }
+}

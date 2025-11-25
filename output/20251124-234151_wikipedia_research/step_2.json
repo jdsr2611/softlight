@@ -1,0 +1,17 @@
+{
+  "step_id": 2,
+  "state": {
+    "url": "https://en.wikipedia.org/wiki/SpaceX"
+  },
+  "action": {
+    "type": "click",
+    "target": 15,
+    "text": null
+  },
+  "target_bbox": {
+    "x": 60,
+    "y": 306.4250183105469,
+    "width": 164,
+    "height": 28.79998779296875
+  }
+}

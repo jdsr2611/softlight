@@ -1,0 +1,17 @@
+{
+  "step_id": 6,
+  "state": {
+    "url": "https://linear.app/santhosh2611/projects/all"
+  },
+  "action": {
+    "type": "click",
+    "target": 36,
+    "text": null
+  },
+  "target_bbox": {
+    "x": 1093.987548828125,
+    "y": 16.30000114440918,
+    "width": 104.2125244140625,
+    "height": 23.999998092651367
+  }
+}
