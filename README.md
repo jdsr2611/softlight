@@ -3,7 +3,7 @@
 ![Python Version](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-**Softlight** is a robust browser execution agent system designed to bridge high-level user intent with concrete browser actions. It implements a dual-agent architecture:
+**Softlight** Browser agent is a robust browser execution agent system designed to bridge high-level user intent with concrete browser actions. It implements a dual-agent architecture:
 - **Agent A (Planner):** Translates high-level questions into structured browser tasks.
 - **Agent B (Executor):** Executes tasks in a live browser using accessibility-tree-based navigation, capturing a rich dataset of interactions.
 
